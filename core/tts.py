@@ -1,26 +1,33 @@
 import subprocess
 import tempfile
 import threading
+import wave
+import io
 import os
 from pathlib import Path
 
-from config import TTS_ENGINE, PIPER_MODEL, PIPER_BIN, TTS_STREAMING
+from config import BASE_DIR
+
+VOICE_DIR = BASE_DIR / "voices"
+DEFAULT_VOICE = VOICE_DIR / "en_US-lessac-medium.onnx"
 
 
 class TextToSpeech:
     def __init__(self):
-        self.engine = TTS_ENGINE
-        self._check_piper()
         self._playing = False
         self._stop_event = threading.Event()
+        self.voice = None
+        self._load_voice()
 
-    def _check_piper(self):
+    def _load_voice(self):
         try:
-            subprocess.run([PIPER_BIN, "--help"], capture_output=True, timeout=5)
-            self.piper_available = True
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            self.piper_available = False
-            self.engine = "espeak"
+            from piper import PiperVoice
+            if DEFAULT_VOICE.exists():
+                self.voice = PiperVoice.load(str(DEFAULT_VOICE))
+            else:
+                self.voice = None
+        except Exception:
+            self.voice = None
 
     def speak(self, text, blocking=True):
         if not text:
@@ -35,7 +42,7 @@ class TextToSpeech:
 
     def _speak_sync(self, text):
         try:
-            if self.engine == "piper" and self.piper_available:
+            if self.voice:
                 self._speak_piper(text)
             else:
                 self._speak_espeak(text)
@@ -45,20 +52,17 @@ class TextToSpeech:
             self._playing = False
 
     def _speak_piper(self, text):
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, "wb") as wav_file:
+            self.voice.synthesize(text, wav_file)
+        wav_buffer.seek(0)
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            f.write(wav_buffer.read())
             wav_path = f.name
         try:
-            process = subprocess.Popen(
-                [PIPER_BIN, "--model", PIPER_MODEL, "--output_file", wav_path],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            process.communicate(input=text.encode())
             subprocess.run(["aplay", wav_path], capture_output=True)
         finally:
-            if os.path.exists(wav_path):
-                os.unlink(wav_path)
+            os.unlink(wav_path)
 
     def _speak_espeak(self, text):
         subprocess.run(["espeak", text], capture_output=True)
