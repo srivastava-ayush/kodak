@@ -1,4 +1,4 @@
-# kodak2 - Jarvis Desktop AI Assistant
+# kodak - Jarvis Desktop AI Assistant [TUI / Voice]
 
 A voice-controlled AI assistant inspired by J.A.R.V.I.S. that listens for a wake word, detects intent, and executes commands on your Arch Linux system.
 
