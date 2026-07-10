@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.wav
+.env
+*.egg-info/
+dist/
+build/
+input.wav
