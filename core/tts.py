@@ -2,7 +2,6 @@ import subprocess
 import tempfile
 import threading
 import wave
-import io
 import os
 from pathlib import Path
 
@@ -52,14 +51,11 @@ class TextToSpeech:
             self._playing = False
 
     def _speak_piper(self, text):
-        wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, "wb") as wav_file:
-            self.voice.synthesize(text, wav_file)
-        wav_buffer.seek(0)
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            f.write(wav_buffer.read())
             wav_path = f.name
         try:
+            with wave.open(wav_path, "wb") as wav_file:
+                self.voice.synthesize_wav(text, wav_file)
             subprocess.run(["aplay", wav_path], capture_output=True)
         finally:
             os.unlink(wav_path)
