@@ -50,7 +50,9 @@ class WakeWordDetector:
                     prediction = self.model.predict(pcm)
                     score = prediction.get(WAKE_WORD, 0)
                     if score > WAKE_WORD_THRESHOLD:
+                        self.stop()
                         callback()
+                        return
                 except queue.Empty:
                     continue
         finally:

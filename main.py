@@ -176,7 +176,8 @@ class JarvisTUI:
                     console.print(f"[red]Error: {e}[/red]")
                 self.current_status = "idle"
 
-            self.engine.wakeword.listen(on_wake)
+            while self.running:
+                self.engine.wakeword.listen(on_wake)
         except Exception:
             pass
 
