@@ -3,112 +3,88 @@ import subprocess
 import os
 from typing import Tuple
 
+from config import SYSTEM
+
 
 class SystemCommands:
     def __init__(self):
         pass
 
+    def _run(self, cmd, timeout=5) -> Tuple[bool, str]:
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout
+            )
+            output = result.stdout.strip()
+            if result.returncode == 0 and output:
+                return True, output
+            return False, output or "Command returned no output"
+        except Exception as e:
+            return False, str(e)
+
     def get_time(self) -> Tuple[bool, str]:
         from datetime import datetime
-        now = datetime.now()
-        return True, now.strftime("%H:%M")
+        return True, datetime.now().strftime("%H:%M")
 
     def get_date(self) -> Tuple[bool, str]:
         from datetime import datetime
-        now = datetime.now()
-        return True, now.strftime("%A, %B %d, %Y")
+        return True, datetime.now().strftime("%A, %B %d, %Y")
 
     def get_cpu_usage(self) -> Tuple[bool, str]:
-        try:
-            result = subprocess.run(
-                ["grep", "cpu", "/proc/stat"],
-                capture_output=True, text=True, timeout=5
-            )
-            parts = result.stdout.split()
-            if len(parts) >= 5:
-                idle = int(parts[4])
-                total = sum(int(x) for x in parts[1:5])
+        if SYSTEM == "Darwin":
+            return self._run(["top", "-l", "1", "-n", "0"])
+        elif SYSTEM == "Windows":
+            return self._run(["powershell", "-c", "Get-Counter '\\Processor(_Total)\\% Processor Time' | Select-Object -ExpandProperty CounterSamples | Select-Object CookedValue"])
+        else:
+            try:
+                with open("/proc/stat") as f:
+                    parts = f.readline().split()
+                idle, total = int(parts[4]), sum(int(x) for x in parts[1:5])
                 usage = round((1 - idle / total) * 100, 1)
                 return True, f"CPU usage: {usage}%"
-            return False, "Could not parse CPU info"
-        except Exception as e:
-            return False, f"Failed to get CPU usage: {e}"
+            except Exception:
+                return self._run(["top", "-bn1"])
 
     def get_memory_usage(self) -> Tuple[bool, str]:
-        try:
-            result = subprocess.run(
-                ["free", "-h"],
-                capture_output=True, text=True, timeout=5
-            )
-            lines = result.stdout.strip().split("\n")
-            if len(lines) >= 2:
-                parts = lines[1].split()
-                return True, f"Memory: {parts[2]} used / {parts[1]} total ({parts[2]})"
-            return False, "Could not parse memory info"
-        except Exception as e:
-            return False, f"Failed to get memory usage: {e}"
+        if SYSTEM == "Darwin":
+            return self._run(["vm_stat"])
+        elif SYSTEM == "Windows":
+            return self._run(["powershell", "-c", "Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize,FreePhysicalMemory"])
+        else:
+            return self._run(["free", "-h"])
 
     def get_disk_usage(self) -> Tuple[bool, str]:
-        try:
-            result = subprocess.run(
-                ["df", "-h", "/"],
-                capture_output=True, text=True, timeout=5
-            )
-            lines = result.stdout.strip().split("\n")
-            if len(lines) >= 2:
-                parts = lines[1].split()
-                return True, f"Disk: {parts[2]} used / {parts[1]} total ({parts[4]})"
-            return False, "Could not parse disk info"
-        except Exception as e:
-            return False, f"Failed to get disk usage: {e}"
+        if SYSTEM == "Windows":
+            return self._run(["powershell", "-c", "Get-PSDrive C | Select-Object Used,Free"])
+        else:
+            path = "/" if SYSTEM == "Linux" else "/"
+            return self._run(["df", "-h", path])
 
     def get_network_info(self) -> Tuple[bool, str]:
-        try:
-            result = subprocess.run(
-                ["ip", "addr", "show"],
-                capture_output=True, text=True, timeout=5
-            )
-            lines = result.stdout.strip().split("\n")
-            interfaces = []
-            current = None
-            for line in lines:
-                if line.startswith("inet "):
-                    parts = line.split()
-                    if len(parts) >= 2 and current:
-                        interfaces.append(f"{current}: {parts[1]}")
-                elif ":" in line and not line.startswith(" "):
-                    current = line.split(":")[1].strip()
-            if interfaces:
-                return True, "Network:\n" + "\n".join(interfaces)
-            return True, "No network interfaces found"
-        except Exception as e:
-            return False, f"Failed to get network info: {e}"
+        if SYSTEM == "Darwin":
+            return self._run(["ifconfig"])
+        elif SYSTEM == "Windows":
+            return self._run(["ipconfig"])
+        else:
+            return self._run(["ip", "addr", "show"])
 
     def get_system_info(self) -> Tuple[bool, str]:
-        try:
-            info = {
-                "OS": f"{platform.system()} {platform.release()}",
-                "Machine": platform.machine(),
-                "Python": platform.python_version(),
-                "Hostname": platform.node(),
-            }
-            lines = [f"{k}: {v}" for k, v in info.items()]
-            return True, "System Info:\n" + "\n".join(lines)
-        except Exception as e:
-            return False, f"Failed to get system info: {e}"
+        info = {
+            "OS": f"{platform.system()} {platform.release()}",
+            "Machine": platform.machine(),
+            "Python": platform.python_version(),
+            "Hostname": platform.node(),
+        }
+        lines = [f"{k}: {v}" for k, v in info.items()]
+        return True, "System Info:\n" + "\n".join(lines)
 
     def get_running_processes(self) -> Tuple[bool, str]:
-        try:
-            result = subprocess.run(
-                ["ps", "aux", "--sort=-pcpu"],
-                capture_output=True, text=True, timeout=5
-            )
-            lines = result.stdout.strip().split("\n")
-            if len(lines) > 6:
-                return True, "Top processes:\n" + "\n".join(lines[:6])
-            return True, result.stdout
-        except Exception as e:
-            return False, f"Failed to get processes: {e}"
+        if SYSTEM == "Darwin":
+            return self._run(["ps", "aux", "--sort=-pcpu"])
+        elif SYSTEM == "Windows":
+            return self._run(["powershell", "-c", "Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 Name,CPU,WorkingSet"])
+        else:
+            return self._run(["ps", "aux", "--sort=-pcpu"])
 
     def handle_intent(self, action: str, params: dict) -> Tuple[bool, str]:
         handlers = {

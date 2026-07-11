@@ -3,12 +3,13 @@ import tempfile
 import threading
 import wave
 import os
+import platform
 from pathlib import Path
 
-from config import BASE_DIR
+from config import VOICE_DIR, DEFAULT_VOICE, SYSTEM
 
-VOICE_DIR = BASE_DIR / "voices"
-DEFAULT_VOICE = VOICE_DIR / "en_US-lessac-medium.onnx"
+if SYSTEM == "Windows":
+    import winsound
 
 
 class TextToSpeech:
@@ -23,8 +24,6 @@ class TextToSpeech:
             from piper import PiperVoice
             if DEFAULT_VOICE.exists():
                 self.voice = PiperVoice.load(str(DEFAULT_VOICE))
-            else:
-                self.voice = None
         except Exception:
             self.voice = None
 
@@ -44,9 +43,9 @@ class TextToSpeech:
             if self.voice:
                 self._speak_piper(text)
             else:
-                self._speak_espeak(text)
+                self._speak_native(text)
         except Exception:
-            self._speak_espeak(text)
+            self._speak_native(text)
         finally:
             self._playing = False
 
@@ -56,12 +55,27 @@ class TextToSpeech:
         try:
             with wave.open(wav_path, "wb") as wav_file:
                 self.voice.synthesize_wav(text, wav_file)
-            subprocess.run(["aplay", wav_path], capture_output=True)
+            self._play_wav(wav_path)
         finally:
             os.unlink(wav_path)
 
-    def _speak_espeak(self, text):
-        subprocess.run(["espeak", text], capture_output=True)
+    def _play_wav(self, wav_path):
+        if SYSTEM == "Darwin":
+            subprocess.run(["afplay", wav_path], capture_output=True)
+        elif SYSTEM == "Windows":
+            subprocess.run(["powershell", "-c", f'(New-Object Media.SoundPlayer "{wav_path}").PlaySync()'], capture_output=True)
+        else:
+            for cmd in ["aplay", "paplay", "play"]:
+                if subprocess.run([cmd, wav_path], capture_output=True).returncode == 0:
+                    return
+
+    def _speak_native(self, text):
+        if SYSTEM == "Darwin":
+            subprocess.run(["say", text], capture_output=True)
+        elif SYSTEM == "Windows":
+            subprocess.run(["powershell", "-c", f"Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('{text}')"], capture_output=True)
+        else:
+            subprocess.run(["espeak", text], capture_output=True)
 
     def stop(self):
         self._stop_event.set()

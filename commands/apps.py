@@ -2,7 +2,7 @@ import subprocess
 import shutil
 from typing import Optional, Tuple
 
-from config import APP_ALIASES
+from config import APP_ALIASES, SYSTEM
 
 
 class AppCommands:
@@ -32,6 +32,20 @@ class AppCommands:
                 return True, f"Launched {exe}"
             except Exception as e:
                 return False, f"Failed to launch {exe}: {e}"
+
+        if SYSTEM == "Darwin":
+            try:
+                subprocess.Popen(["open", "-a", app_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True, f"Launched {app_name}"
+            except Exception:
+                pass
+        elif SYSTEM == "Windows":
+            try:
+                subprocess.Popen(["start", "", app_name], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True, f"Launched {app_name}"
+            except Exception:
+                pass
+
         return False, f"Could not find application: {app_name}"
 
     def handle_intent(self, params: dict) -> Tuple[bool, str]:

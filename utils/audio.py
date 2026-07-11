@@ -1,3 +1,9 @@
+from config import SYSTEM
+
+if SYSTEM == "Windows":
+    import winsound
+
+
 class AudioUtils:
     @staticmethod
     def play_beep(frequency: int = 800, duration: float = 0.1, volume: float = 0.05):
