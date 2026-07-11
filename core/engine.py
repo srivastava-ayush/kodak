@@ -8,6 +8,7 @@ from .tts import TextToSpeech
 from .llm import LLMClient
 from .intent import IntentDetector
 from .executor import CommandExecutor
+from .memory import Memory
 
 from commands.apps import AppCommands
 from commands.files import FileCommands
@@ -26,7 +27,8 @@ class AssistantEngine:
         self.stt = SpeechToText()
         self.tts = TextToSpeech()
         self.llm = LLMClient()
-        self.intent_detector = IntentDetector(self.llm)
+        self.memory = Memory()
+        self.intent_detector = IntentDetector(self.llm, self.memory)
         self.executor = CommandExecutor(self.stt, self.tts)
 
         self.apps = AppCommands()
@@ -43,7 +45,6 @@ class AssistantEngine:
             self.callback("status", status)
 
     def on_wake_word(self):
-        AudioUtils.play_wake_sound()
         self.set_status("listening")
 
     def process_input(self, text: str) -> str:
@@ -61,7 +62,9 @@ class AssistantEngine:
         success = False
         output = ""
 
-        if intent_type == "app":
+        if intent_type == "memory":
+            success, output = self.memory.handle_intent(action, params)
+        elif intent_type == "app":
             success, output = self.apps.handle_intent(params)
         elif intent_type == "file":
             success, output = self.files.handle_intent(action, params)
