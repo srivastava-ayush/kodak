@@ -11,6 +11,7 @@ class SpeechToText:
 
     def record_audio(self, duration=RECORD_DURATION):
         fs = SAMPLE_RATE
+        sd.stop()
         audio = sd.rec(int(duration * fs), samplerate=fs, channels=CHANNELS)
         sd.wait()
         wav.write(str(AUDIO_FILE), fs, audio)

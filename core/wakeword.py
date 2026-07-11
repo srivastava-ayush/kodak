@@ -1,5 +1,5 @@
 import queue
-import threading
+import time
 import numpy as np
 import sounddevice as sd
 from openwakeword.model import Model
@@ -19,11 +19,12 @@ class WakeWordDetector:
         self.model = Model()
 
     def _audio_callback(self, indata, frames, time_info, status):
-        if status:
-            pass
+        if not self.running:
+            return
         self.audio_queue.put(indata.copy())
 
     def start(self):
+        self.audio_queue = queue.Queue()
         self.running = True
         self.stream = sd.InputStream(
             samplerate=SAMPLE_RATE,
@@ -37,8 +38,13 @@ class WakeWordDetector:
     def stop(self):
         self.running = False
         if self.stream:
-            self.stream.stop()
-            self.stream.close()
+            try:
+                self.stream.stop()
+                self.stream.close()
+            except Exception:
+                pass
+            self.stream = None
+        time.sleep(0.2)
 
     def listen(self, callback):
         self.start()
@@ -46,36 +52,17 @@ class WakeWordDetector:
             while self.running:
                 try:
                     audio_frame = self.audio_queue.get(timeout=0.1)
+                    if not self.running:
+                        return
                     pcm = audio_frame.flatten().astype(np.int16)
                     prediction = self.model.predict(pcm)
                     score = prediction.get(WAKE_WORD, 0)
                     if score > WAKE_WORD_THRESHOLD:
                         self.stop()
+                        time.sleep(0.3)
                         callback()
                         return
                 except queue.Empty:
                     continue
         finally:
             self.stop()
-
-    def listen_once(self):
-        event = threading.Event()
-
-        def on_detected():
-            event.set()
-
-        self.start()
-        try:
-            while not event.is_set():
-                try:
-                    audio_frame = self.audio_queue.get(timeout=0.1)
-                    pcm = audio_frame.flatten().astype(np.int16)
-                    prediction = self.model.predict(pcm)
-                    score = prediction.get(WAKE_WORD, 0)
-                    if score > WAKE_WORD_THRESHOLD:
-                        return True
-                except queue.Empty:
-                    continue
-        finally:
-            self.stop()
-        return False

@@ -160,8 +160,8 @@ class JarvisTUI:
     def _wake_word_loop(self):
         try:
             def on_wake():
+                import time
                 self.current_status = "listening"
-                self.engine.on_wake_word()
                 console.print("\n[bold cyan]Wake word detected![/bold cyan]")
                 try:
                     text = self.engine.stt.record_and_transcribe()
@@ -175,6 +175,7 @@ class JarvisTUI:
                 except Exception as e:
                     console.print(f"[red]Error: {e}[/red]")
                 self.current_status = "idle"
+                time.sleep(1)
 
             while self.running:
                 self.engine.wakeword.listen(on_wake)
