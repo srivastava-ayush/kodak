@@ -3,10 +3,7 @@ import re
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, Callable, Tuple
-from threading import Thread
-import queue
+from typing import Tuple
 
 from config import (
     CONFIRM_BEFORE_EXECUTE,
