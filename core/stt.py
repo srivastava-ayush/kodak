@@ -1,3 +1,4 @@
+import time
 import sounddevice as sd
 import scipy.io.wavfile as wav
 from faster_whisper import WhisperModel
@@ -12,6 +13,10 @@ class SpeechToText:
     def record_audio(self, duration=RECORD_DURATION):
         fs = SAMPLE_RATE
         sd.stop()
+        time.sleep(0.5)
+        sd.stop()
+        warmup = sd.rec(int(0.3 * fs), samplerate=fs, channels=CHANNELS)
+        sd.wait()
         audio = sd.rec(int(duration * fs), samplerate=fs, channels=CHANNELS)
         sd.wait()
         wav.write(str(AUDIO_FILE), fs, audio)
